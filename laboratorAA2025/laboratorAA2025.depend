@@ -1,0 +1,10 @@
+# depslib dependency file v1.0
+1744185995 source:c:\users\andre\desktop\an ii 2024-2025\aa\laboratoraa2025\main.cpp
+	<iostream>
+	<fstream>
+	<iomanip>
+	<cmath>
+	<random>
+	<cstdlib>
+	<ctime>
+

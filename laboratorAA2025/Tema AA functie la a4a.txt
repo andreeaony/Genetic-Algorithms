@@ -1,0 +1,355 @@
+//ALGORITMI GENETICI - TEMA
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <cmath>
+#include <random>
+#include <cstdlib>
+#include <ctime>
+
+using namespace std;
+ofstream fout("Evolutie.txt");
+
+int numberOfChromosomes;
+double leftInterval, rightInterval;
+int parameterA, parameterB, parameterC, parameterD, parameterE;
+int precision, numberOfSteps;
+double crossoverProbability, mutationProbability;
+double evolutionMax, evolutionMean;
+string convertInB2(int number, int length)
+{
+    string result="";
+    while(number>0)
+    {
+        result=char((number%2)+'0')+result;
+        number/=2;
+    }
+    //zerouri lipsa
+    while(result.length()<length)
+        result="0"+result;
+    return result;
+}
+double convertInB10(string binary)
+{
+    int result=0, power=1;
+    for(int i=binary.length()-1; i>=0; i--)
+    {
+        if(binary[i]=='1')
+            result+=power;
+        power*=2;
+    }
+    return result;
+}
+int binarySearch(double vect[], int n, double u)
+{
+    int left=1, right=n, middle;
+    while(left<=right)
+    {
+        middle=(left+right)/2;
+        if(vect[middle]<=u && u<vect[middle+1]) //numarul din mijloc e chiar u
+            return middle;
+        if(u<vect[middle])
+            right=middle-1; //trec in stanga
+        else
+            left=middle+1; //trec in dreapta
+    }
+    return 0;
+}
+double calculateFunctionResults(double* functionResult, double* chromosomesReal, int numberOfChromosomes, int parameterA, int parameterB, int parameterC, int parameterD, int parameterE)
+{
+    double sumOfFunctionResult=0;
+    for(int i=0; i<numberOfChromosomes; i++)
+    {
+        functionResult[i]=parameterA*chromosomesReal[i]*chromosomesReal[i]*chromosomesReal[i]*chromosomesReal[i]+parameterB*chromosomesReal[i]*chromosomesReal[i]*chromosomesReal[i]+parameterC*chromosomesReal[i]*chromosomesReal[i]+parameterD*chromosomesReal[i]+parameterE;
+        sumOfFunctionResult+=functionResult[i];
+    }
+    return sumOfFunctionResult;
+}
+void calculateProbabilityIntervals(double* interval, double* cumulatedProbability, double* functionResult, int numberOfChromosomes, double sumOfFunctionResult)
+{
+    double currentSum=0;
+    interval[0]=0;
+    for(int i=1; i<numberOfChromosomes+1; i++)
+    {
+        currentSum+=functionResult[i-1];// i=1 pentru ca interval[0] = 0
+        cumulatedProbability[i]=currentSum;
+        interval[i]=currentSum/sumOfFunctionResult;
+    }
+}
+void crossover2Chromosomes(string* selectedChromosomes, int crossoverSelected[], int randomNumber, double length, int i)
+{
+    string change1=selectedChromosomes[crossoverSelected[i]-1], change2=selectedChromosomes[crossoverSelected[i+1]-1];
+    for(int idx=randomNumber; idx<length; idx++)
+    {
+        selectedChromosomes[crossoverSelected[i]-1][idx]=change2[idx];
+        selectedChromosomes[crossoverSelected[i+1]-1][idx]=change1[idx];
+    }
+}
+void generateMutation(bool* modifiedChromosomesIndex, double randomNumberDouble, double mutationProbability, string* selectedChromosomes, int i, int bit)
+{
+    if(randomNumberDouble<=mutationProbability)
+    {
+        modifiedChromosomesIndex[i]=1;
+        if(selectedChromosomes[i][bit]=='0') //si apoi fac modificarea
+            selectedChromosomes[i][bit]='1';
+        else
+            selectedChromosomes[i][bit]='0';
+    }
+}
+
+int main()
+{
+    fout<<"Evolutie.txt - Onisie Andreea, grupa 242"<<'\n'<<'\n';
+
+    ///POPULATIA INITIALA
+    //citirea datelor
+
+
+    cin>>numberOfChromosomes;
+    string chromosomes[numberOfChromosomes]={""};
+    cin>>leftInterval>>rightInterval;
+    cin>>parameterA>>parameterB>>parameterC>>parameterD>>parameterE;
+    cin>>precision;
+    cin>>crossoverProbability>>mutationProbability;
+    cin>>numberOfSteps;
+
+    double chromosomesReal[numberOfChromosomes]={0};
+    double functionResult[numberOfChromosomes]={0};
+
+    int length=ceil(log2((rightInterval-leftInterval)*pow(10, precision))); //lungimea sirului
+    double discretization=(rightInterval-leftInterval)/pow(2, length);//pasul de discretizare
+
+    srand(time(0));
+    for(int i=0; i<numberOfChromosomes; i++)
+    {
+        string chromosome="";
+        for(int j=0; j<length; j++)
+            chromosome+=rand()%2+'0';
+        chromosomes[i]=chromosome;
+    }
+
+    for(int steps=1; steps<=numberOfSteps; steps++)
+    {
+        if(steps==1) //pentru celelalte etape am datele din etapele anterioare
+            for(int i=0; i<numberOfChromosomes; i++)
+                chromosomesReal[i]=leftInterval+convertInB10(chromosomes[i])*discretization;
+
+        //determinarea valorii functiei f pentru fiecare cromozom si suma totala a valorilor functiei
+        double sumOfFunctionResult=calculateFunctionResults(functionResult,chromosomesReal,numberOfChromosomes,parameterA,parameterB,parameterC, parameterD, parameterE);
+
+        if(steps==1) //afisez doar prima etapa
+        {
+            //afisarea in fisierul text a datelor despre POPULATIA INITIALA
+            fout<<"Populatia initiala are un numar de "<<numberOfChromosomes<<" cromozomi: "<<'\n';
+            for(int i=0; i<numberOfChromosomes; i++)
+                fout<<i+1<<") "<<setw(5)<<chromosomes[i]<<" x="<<setw(10)<<fixed<<setprecision(precision)<<chromosomesReal[i]<<" f(x)="<<setprecision(17)<<functionResult[i]<<'\n';
+            fout<<'\n';
+        }
+
+        ///PROBABILITATEA DE SELECTIE
+        //determinarea probabilitatii de selectie pentru fiecare cromozom
+        double selectionProbability[numberOfChromosomes]={0};
+        for(int i=0; i<numberOfChromosomes; i++)
+            selectionProbability[i]=functionResult[i]/sumOfFunctionResult;
+
+        if(steps==1) //afisez doar prima etapa
+        {
+            //afisarea in fisierul text a datelor despre PROBABILITATEA DE SELECTIE
+            fout<<"Probabilitatile de selectie pentru cei "<<numberOfChromosomes<<" cromozomi sunt:"<<'\n';
+            for(int i=0; i<numberOfChromosomes; i++)
+                fout<<"Cromozomul cu numarul "<<setw(4)<<i+1<<" are probabilitatea de selectie "<<setprecision(17)<<selectionProbability[i]<<'\n';
+            fout<<'\n';
+        }
+
+        ///PROBABILITATILE CUMULATE SI INTERVALELE PROBABILITATILOR DE SELECTIE
+        double interval[numberOfChromosomes+1]={0}, cumulatedProbability[numberOfChromosomes+1]={0};
+        calculateProbabilityIntervals(interval, cumulatedProbability, functionResult, numberOfChromosomes, sumOfFunctionResult);
+
+        if(steps==1) //afisez doar prima etapa
+        {
+            //afisarea in fisierul text a datelor despre PROBABILITATEA CUMULATA pentru fiecare cromozom
+            fout<<"Probabilitatile cumulate sunt urmatoarele:"<<'\n';
+            for(int i=0; i<numberOfChromosomes+1; i++)
+                fout<<cumulatedProbability[i]<<'\n';
+            fout<<'\n';
+
+            //afisarea in fisierul text a datelor despre INTERVALELE DE SELECTIE
+            fout<<"Intervalele de selectie sunt urmatoarele:"<<'\n';
+            for(int i=0; i<numberOfChromosomes+1; i++)
+                fout<<interval[i]<<'\n';
+            fout<<'\n';
+        }
+
+        ///GENERARE U UNIFORM
+        random_device randomDevice; //seed aleator de la hardware
+        mt19937 gen(randomDevice()); //generator Mersenne Twister
+        uniform_real_distribution<double> distributionDouble(0.0, 1.0); //distributie uniforma pe [0,1)
+
+        double uList[numberOfChromosomes]={0}; //generarea numarului u distribuit uniform pe [0,1)
+        int selection[numberOfChromosomes]={0};
+
+        for(int i=0; i<numberOfChromosomes; i++)
+        {
+            uList[i]=distributionDouble(gen);
+            selection[i]=binarySearch(interval, numberOfChromosomes, uList[i])+1; //pentru [qi,qi+1) selectez cromozomul i+1
+        }
+        int maxChromosomeFit=-1;
+        double maximumFit=-1;
+        for(int i=0; i<numberOfChromosomes; i++)
+            if(maximumFit<functionResult[i]){
+                maximumFit=functionResult[i];
+                maxChromosomeFit=i+1;
+            }
+        selection[numberOfChromosomes-1]=maxChromosomeFit;
+
+        if(steps==1) //afisez doar prima
+        {
+             fout<<'\n'<<"Selectia cromozomilor:"<<'\n';
+             for(int i=0; i<numberOfChromosomes-1; i++)
+                 fout<<"u="<<uList[i]<<"   selectam cromozomul cu numarul "<<selection[i]<<'\n';
+             fout<<"ELITIST, selectam cromozomul cu numarul "<<selection[numberOfChromosomes-1]<<'\n';
+             fout<<'\n';
+        }
+
+        ///DUPA SELECTIE
+        string selectedChromosomes[numberOfChromosomes]={""};
+        for(int i=0; i<numberOfChromosomes; i++)
+        {
+            int index=selection[i]-1; //-1 ptc am numerotarea de la 0
+            selectedChromosomes[i]=chromosomes[index];
+        }
+        if(steps==1) //afisez doar prima etapa
+        {
+            fout<<"Dupa selectie, cromozomii sunt urmatorii:"<<'\n';
+            for(int i=0; i<numberOfChromosomes; i++)
+            {
+                int index=selection[i]-1;
+                fout<<i+1<<") "<<setw(5)<<selectedChromosomes[i]<<" x="<<setw(10)<<fixed<<setprecision(precision)<<chromosomesReal[index]<<" f(x)="<<setprecision(17)<<functionResult[index]<<'\n';
+            }
+            fout<<'\n';
+        }
+
+        ///SELECTARE CROMOZOMI CARE PARTICIPA LA RECOMBINARE
+        if(steps==1) //afisez doar prima etapa
+            fout<<"Stiind ca probabilitatea de incrucisare este de "<<crossoverProbability<<", avem urmatorii cromozomi:"<<'\n';
+        int crossoverSelected[numberOfChromosomes]={-1};
+        int contor=0;
+        for(int i=0; i<numberOfChromosomes; i++)
+        {
+            double uRandom=distributionDouble(gen);
+            if(uRandom<=crossoverProbability) //generez numarul random u pentru fiecare cromozom
+            {
+                crossoverSelected[contor]=i+1; //din cei aranjati dupa chromosomes[index], adica dupa selectedChromosomes[i]
+                contor++;
+                if(steps==1) //afisez doar prima etapa
+                    fout<<i+1<<") "<<setw(5)<<selectedChromosomes[i]<<" u="<<uRandom<<" < "<<crossoverProbability<<" => participa la recombinare\n";
+            }
+            else if(steps==1) //afisez doar prima etapa
+                fout<<i+1<<") "<<setw(5)<<selectedChromosomes[i]<<" u="<<uRandom<<'\n';
+
+        }
+        if(steps==1) //afisez doar prima etapa
+            fout<<'\n';
+
+        ///RECOMBINARE
+        for(int i=0; i<contor; i+=2)
+        {
+            if(steps==1) //afisez doar prima etapa
+                fout<<"Recombinare intre cromozomul cu numarul "<<crossoverSelected[i]<<" si cromozomul cu numarul "<<crossoverSelected[i+1]<<":\n";
+            //generare numar random [0,length]
+            uniform_int_distribution<int> distributionInt(0, length);
+            int randomNumber=distributionInt(gen);
+            if(steps==1) //afisez doar prima etapa
+                fout<<selectedChromosomes[crossoverSelected[i]-1]<<"  +  "<<selectedChromosomes[crossoverSelected[i+1]-1]<<" in punctul "<<randomNumber<<'\n';
+            //RECOMBINAREA celor 2 cromozomi selectati
+            crossover2Chromosomes(selectedChromosomes, crossoverSelected, randomNumber, length, i);
+            if(steps==1) //afisez doar prima etapa
+                fout<<"Rezultat   "<<selectedChromosomes[crossoverSelected[i]-1]<<"      "<<selectedChromosomes[crossoverSelected[i+1]-1]<<'\n';
+        }
+        if(steps==1) //afisez doar prima etapa
+            fout<<'\n';
+
+        ///CROMOZOMI DUPA RECOMBINARE
+        //determinarea valorii reale pentru fiecare cromozom selectat
+        double selectedChromosomesReal[numberOfChromosomes]={0};
+        for(int i=0; i<numberOfChromosomes; i++)
+            selectedChromosomesReal[i]=leftInterval+convertInB10(selectedChromosomes[i])*discretization;
+
+        //determinarea valorii functiei f pentru fiecare cromozom selectat si suma totala a valorilor functiei
+        double functionResultForSelected[numberOfChromosomes]={0};
+        double sumOfFunctionResultForSelected=calculateFunctionResults(functionResultForSelected, selectedChromosomesReal, numberOfChromosomes, parameterA, parameterB, parameterC, parameterD, parameterE);
+
+        if(steps==1) //afisez doar prima etapa
+        {
+            //afisarea in fisierul text a datelor despre POPULATIA DUPA RECOMBIANRE
+            fout<<"Dupa recombinare, populatia de cromozomi este:"<<'\n';
+            for(int i=0; i<numberOfChromosomes; i++)
+                fout<<i+1<<") "<<setw(5)<<selectedChromosomes[i]<<" x="<<setw(10)<<fixed<<setprecision(precision)<<selectedChromosomesReal[i]<<" f(x)="<<setprecision(17)<<functionResultForSelected[i]<<'\n';
+            fout<<'\n';
+
+        ///MUTATII
+            fout<<"Probabilitatea de mutatie pentru fiecare gena este de "<<mutationProbability<<'\n';
+        }
+
+        //verific daca cromozomii au fost modificati si daca da, salvez cromozomii modificati(nr lor de index)
+        bool modifiedChromosomesIndex[numberOfChromosomes]={0};
+        for(int i=0; i<numberOfChromosomes; i++)
+        {
+            //pentru fiecare cromozom, iau la rand fiecare gena
+            for(int bit=0; bit<length; bit++)
+            {
+                //generare numar random [0,1)
+                double randomNumberDouble=distributionDouble(gen);
+                generateMutation(modifiedChromosomesIndex, randomNumberDouble, mutationProbability, selectedChromosomes, i, bit);
+            }
+        }
+        if(steps==1) //afisez doar prima etapa
+        {
+            //afisarea cromozomilor modificati dupa numarul lor de ordine
+            fout<<"Au fost modificati urmatorii cromozomi:"<<'\n';
+            for(int i=0; i<numberOfChromosomes; i++)
+                if(modifiedChromosomesIndex[i]==1)
+                    fout<<i+1<<'\n';
+        }
+
+        ///afisarea cromozomilor dupa MUTATIE
+        //determinarea valorii reale pentru fiecare cromozom
+        double mutatedChromosomesReal[numberOfChromosomes]={0};
+        for(int i=0; i<numberOfChromosomes; i++)
+            mutatedChromosomesReal[i]=leftInterval+convertInB10(selectedChromosomes[i])*discretization;
+
+        //determinarea valorii functiei f pentru fiecare cromozom selectat si suma totala a valorilor functiei
+        double functionResultForMutated[numberOfChromosomes]={0};
+        double sumOfFunctionResultForMutated=calculateFunctionResults(functionResultForMutated,mutatedChromosomesReal,numberOfChromosomes,parameterA,parameterB,parameterC,parameterD, parameterE);
+
+        if(steps==1) //afisez doar prima etapa
+        {
+             //afisarea in fisierul text a datelor despre POPULATIA DUPA MUTATIE
+            fout<<"In urma mutatiei, cromozomii sunt:"<<'\n';
+            for(int i=0; i<numberOfChromosomes; i++)
+                fout<<i+1<<") "<<setw(5)<<selectedChromosomes[i]<<" x="<<setw(10)<<fixed<<setprecision(precision)<<mutatedChromosomesReal[i]<<" f(x)="<<setprecision(17)<<functionResultForMutated[i]<<'\n';
+            fout<<'\n';
+        }
+
+        ///EVOLUTIA MAXIMULUI
+        if(steps==1)
+            fout<<"Evolutia maximului si a mediei fitness-ului pentru toate cele "<<numberOfSteps<<" generatii este urmatoarea:"<<'\n';
+        evolutionMax=0;
+        evolutionMean=0;
+        for(int x=0; x<numberOfChromosomes; x++)
+        {
+            if(evolutionMax<functionResultForMutated[x])
+                evolutionMax=functionResultForMutated[x];
+            evolutionMean+=functionResultForMutated[x]/numberOfChromosomes;
+        }
+        fout<<"Generatia "<<steps<<": maxim fitness="<<evolutionMax<<"     media fitness="<<evolutionMean<<'\n';
+
+        //transmitere date catre urmatoarea generatie
+        for(int x=0; x<numberOfChromosomes; x++)
+        {
+            chromosomes[x]=selectedChromosomes[x];
+            chromosomesReal[x]=mutatedChromosomesReal[x];
+        }
+    }
+    return 0;
+}

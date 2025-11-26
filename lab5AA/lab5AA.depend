@@ -1,0 +1,9 @@
+# depslib dependency file v1.0
+1746016004 source:c:\users\andre\desktop\an ii 2024-2025\aa\lab5aa\main.cpp
+	<iostream>
+	<vector>
+	<iostream>
+	<iostream>
+	<vector>
+	<algorithm>
+
